@@ -14,6 +14,8 @@ import org.jetbrains.annotations.Nullable;
  */
 public class BuildingMageTower extends AbstractBuildingGuards {
     public static final int MAX_LEVEL = 3;
+    /** Levels with a blueprint so far (the tower is being redesigned level by level); raise as blueprints land. */
+    public static final int BLUEPRINT_LEVELS = 1;
 
     private final MageSchool school;
 
@@ -34,7 +36,7 @@ public class BuildingMageTower extends AbstractBuildingGuards {
 
     @Override
     public int getMaxBuildingLevel() {
-        return MAX_LEVEL;
+        return BLUEPRINT_LEVELS;
     }
 
     /** Exactly the tower level (the default allows anything at the top level). */
