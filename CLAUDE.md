@@ -17,7 +17,8 @@ add every new plan item to the checklist too.**
 - Required (also in `neoforge.mods.toml`): Ars Nouveau, **Ars Deco**, MineColonies, Structurize, **Archwood Colonies**.
 - LDTTeam maven (`com.ldtteam` only): minecolonies, structurize, blockui, `domum-ornamentum:<v>:main`, multipiston (runtime).
 - CurseMaven (`curse.maven` only): Ars Deco (compiled against), Archwood Colonies + Biomes O' Plenty +
-  TerraBlender + GlitchCore (runtime only; Archwood is data-only and its pack requires BoP).
+  TerraBlender + GlitchCore (runtime only; Archwood is data-only and its pack requires BoP), and Ars Additions
+  (runtime only: the Mage Tower blueprints use its `sourcestone_wall`, so the tower needs Ars Additions installed).
 - Everything is non-transitive.
 
 ## Repository & releases

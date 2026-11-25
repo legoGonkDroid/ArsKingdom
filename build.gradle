@@ -92,6 +92,9 @@ dependencies {
     localRuntime("curse.maven:${biomesoplenty_curse}") { transitive = false }
     localRuntime("curse.maven:${terrablender_curse}") { transitive = false }
     localRuntime("curse.maven:${glitchcore_curse}") { transitive = false }
+
+    // Ars Additions: runtime only, for its sourcestone walls in the Mage Tower blueprints (never compiled against).
+    localRuntime("curse.maven:${ars_additions_curse}") { transitive = false }
 }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {

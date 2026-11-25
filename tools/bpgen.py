@@ -12,6 +12,7 @@ def st(name, **props):
 
 
 SOLID_SUB = st("structurize:blocksolidsubstitution")
+ANY = st("structurize:blocksubstitution")   # Structurize placeholder: the builder leaves whatever is there
 GRASS = st("minecraft:grass_block", snowy=False)
 ANDESITE = st("minecraft:polished_andesite")
 COBBLE = st("minecraft:cobblestone")

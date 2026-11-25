@@ -159,7 +159,7 @@ public final class MageTowerTests {
     public static void towerBlueprintsLoad(GameTestHelper helper) {
         StructurePacks.waitUntilFinishedLoading();
         String pack = "Ars Kingdom (Archwood Collective)";
-        // The towers are being redesigned: only the Red level 1 blueprint exists so far.
+        // The towers are being redesigned: only the Red blueprints up to BLUEPRINT_LEVELS exist so far.
         for (MageSchool school : List.of(MageSchool.RED)) {
             for (int level = 1; level <= BuildingMageTower.BLUEPRINT_LEVELS; level++) {
                 String file = "military/" + school.hutId() + level + ".blueprint";
@@ -169,7 +169,7 @@ public final class MageTowerTests {
                 helper.assertTrue(anchor.is(AKBlocks.MAGE_TOWERS.get(school).get()), file + ": anchor should be its hut, got " + anchor);
                 long airInPalette = Arrays.stream(bp.getPalette()).filter(st -> st.is(Blocks.AIR)).count();
                 helper.assertTrue(airInPalette == 1, file + ": an unknown block id loaded as air (" + airInPalette + ")");
-                helper.assertTrue(bp.getSizeX() == 13 && bp.getSizeZ() == 13 && bp.getSizeY() == 20, file + ": plot should be 13x20x13");
+                helper.assertTrue(bp.getSizeX() == 19 && bp.getSizeZ() == 19 && bp.getSizeY() == 20, file + ": plot should be 19x20x19");
                 boolean schoolLog = false;
                 for (BlockState st : bp.getPalette()) {
                     String path = BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath();
@@ -199,7 +199,7 @@ public final class MageTowerTests {
                         }
                     }
                 }
-                helper.assertTrue(beds == level, file + ": one bed per battlemage, expected " + level + ", got " + beds);
+                helper.assertTrue(beds == 1, file + ": one bed (user design: level 2 keeps the single bed), got " + beds);
             }
         }
         helper.succeed();
