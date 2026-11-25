@@ -76,4 +76,4 @@ and must look like they belong in Archwood Collective, modelled on Archwood's bu
   `pack`, `path` and `blueprintDataProvider` with corners and a `groundlevel` tag). Re-run the script after edits.
 - Blueprints: the file name is `<building id><level>.blueprint` (e.g. `sourcesanctum1`), anchored on the hut block, in
   `src/main/resources/blueprints/ars_kingdom/arskingdom/{military,mystic}/`. They're scanned in game with the
-  Structurize scan tool (scans land in `<game dir>/blueprints/<player>/scans/`). Pack icons: `tools/gen_pack_icons.py`.
+  Structurize scan tool (scans land in `<game dir>/blueprints/<player>/scans/`). Pack icons: `tools/gen_pack_icons.py`. CurseForge logo: `tools/render_logo.py` → `art/curseforge_logo.png`.

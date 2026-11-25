@@ -2,6 +2,8 @@
 
 An [Ars Nouveau](https://www.curseforge.com/minecraft/mc-mods/ars-nouveau) × [MineColonies](https://www.curseforge.com/minecraft/mc-mods/minecolonies) addon for NeoForge 1.21.1: battlemage towers, source economy huts, Ars machine halls, Arcana research, Wilden raids and colony-wide Ars Deco dye.
 
+![Ars Kingdom](art/curseforge_logo.png)
+
 **In development.** Early versions cover only part of the plan.
 
 ## Requirements
