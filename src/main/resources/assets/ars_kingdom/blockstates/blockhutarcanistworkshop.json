@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "ars_kingdom:block/blockhutarcanistworkshop",
+      "y": 0
+    },
+    "facing=south": {
+      "model": "ars_kingdom:block/blockhutarcanistworkshop",
+      "y": 90
+    },
+    "facing=west": {
+      "model": "ars_kingdom:block/blockhutarcanistworkshop",
+      "y": 180
+    },
+    "facing=north": {
+      "model": "ars_kingdom:block/blockhutarcanistworkshop",
+      "y": 270
+    }
+  }
+}

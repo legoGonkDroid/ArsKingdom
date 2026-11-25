@@ -1,0 +1,32 @@
+{
+  "type": "recipe",
+  "crafter": "arcanist_custom",
+  "inputs": [
+    {
+      "id": "minecraft:book",
+      "count": 1
+    },
+    {
+      "id": "minecraft:iron_shovel",
+      "count": 1
+    },
+    {
+      "id": "minecraft:iron_pickaxe",
+      "count": 1
+    },
+    {
+      "id": "minecraft:iron_axe",
+      "count": 1
+    },
+    {
+      "id": "minecraft:iron_sword",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "ars_nouveau:novice_spell_book",
+    "count": 1
+  },
+  "intermediate": "minecraft:air",
+  "min-building-level": 1
+}

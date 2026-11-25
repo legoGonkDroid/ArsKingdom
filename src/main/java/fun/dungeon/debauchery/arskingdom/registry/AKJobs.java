@@ -7,7 +7,9 @@ import com.minecolonies.core.colony.jobs.views.DefaultJobView;
 import fun.dungeon.debauchery.arskingdom.ArsKingdom;
 import fun.dungeon.debauchery.arskingdom.battlemage.BattlemageSchools;
 import fun.dungeon.debauchery.arskingdom.battlemage.MageSchool;
+import fun.dungeon.debauchery.arskingdom.job.JobArcanist;
 import fun.dungeon.debauchery.arskingdom.job.JobSourceKeeper;
+import com.minecolonies.core.colony.jobs.views.CrafterJobView;
 import java.util.EnumMap;
 import java.util.Map;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -23,6 +25,13 @@ public final class AKJobs {
             .setJobProducer(JobSourceKeeper::new)
             .setJobViewProducer(() -> DefaultJobView::new)
             .setRegistryName(ArsKingdom.id("sourcekeeper"))
+            .createJobEntry());
+
+    /** The Arcanist (Arcanist Workshop): a custom-recipe crafter, so its recipes are keyed {@code arcanist_custom}. */
+    public static final DeferredHolder<JobEntry, JobEntry> ARCANIST = JOBS.register("arcanist", () -> new JobEntry.Builder()
+            .setJobProducer(JobArcanist::new)
+            .setJobViewProducer(() -> CrafterJobView::new)
+            .setRegistryName(ArsKingdom.id("arcanist"))
             .createJobEntry());
 
     /** One battlemage job per registered school: {@code ars_kingdom:battlemage_<school>}. */

@@ -1,0 +1,7 @@
+{
+  "costs": {
+    "ars_nouveau:novice_spell_book": 500,
+    "ars_nouveau:apprentice_spell_book": 1500,
+    "ars_nouveau:archmage_spell_book": 4000
+  }
+}

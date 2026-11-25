@@ -21,6 +21,9 @@ public final class AKItems {
     public static final DeferredItem<ItemBlockHut> SOURCE_SANCTUM = ITEMS.register(AKBlocks.SOURCE_SANCTUM.getId().getPath(),
             () -> new ItemBlockHut(AKBlocks.SOURCE_SANCTUM.get(), new Item.Properties()));
 
+    public static final DeferredItem<ItemBlockHut> ARCANIST_WORKSHOP = ITEMS.register(AKBlocks.ARCANIST_WORKSHOP.getId().getPath(),
+            () -> new ItemBlockHut(AKBlocks.ARCANIST_WORKSHOP.get(), new Item.Properties()));
+
     public static final Map<MageSchool, DeferredItem<ItemBlockHut>> MAGE_TOWERS = new EnumMap<>(MageSchool.class);
 
     static {
@@ -33,6 +36,7 @@ public final class AKItems {
             .icon(() -> SOURCE_SANCTUM.get().getDefaultInstance())
             .displayItems((params, output) -> {
                 output.accept(SOURCE_SANCTUM.get());
+                output.accept(ARCANIST_WORKSHOP.get());
                 MAGE_TOWERS.values().forEach(item -> output.accept(item.get()));
             })
             .build());

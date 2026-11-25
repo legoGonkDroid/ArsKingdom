@@ -97,6 +97,25 @@ dependencies {
     localRuntime("curse.maven:${ars_additions_curse}") { transitive = false }
 }
 
+// Our crafter recipes must not duplicate an Archwood Colonies crafter recipe (tools/check_archwood_overlap.py).
+var archwoodJar = configurations.detachedConfiguration(dependencies.create("curse.maven:${archwood_colonies_curse}"))
+archwoodJar.transitive = false
+var checkArchwoodOverlap = tasks.register('checkArchwoodOverlap', Exec) {
+    group = 'verification'
+    description = 'Fails if one of our crafter recipes makes an item an Archwood Colonies crafter recipe already makes.'
+    inputs.dir('src/main/resources/data/ars_kingdom/crafterrecipes')
+    inputs.file('tools/check_archwood_overlap.py')
+    outputs.upToDateWhen { false }
+    commandLine 'python3', 'tools/check_archwood_overlap.py', "${-> archwoodJar.singleFile}", 'src/main/resources/data/ars_kingdom/crafterrecipes'
+}
+var checkArchwoodOverlapSelfTest = tasks.register('checkArchwoodOverlapSelfTest', Exec) {
+    group = 'verification'
+    description = 'The overlap check catches a deliberate duplicate (Arcanist robes).'
+    outputs.upToDateWhen { false }
+    commandLine 'python3', 'tools/check_archwood_overlap.py', '--self-test', "${-> archwoodJar.singleFile}"
+}
+tasks.named('check') { dependsOn checkArchwoodOverlap, checkArchwoodOverlapSelfTest }
+
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
     var replaceProperties = [
             minecraft_version              : minecraft_version,

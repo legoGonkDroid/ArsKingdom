@@ -46,5 +46,10 @@
   "block.ars_kingdom.blockhutmagetowerpurple": "Purple Mage Tower",
   "com.ars_kingdom.building.magetowerpurple": "Purple Mage Tower",
   "com.ars_kingdom.job.battlemage_purple": "Purple Battlemage",
-  "com.ars_kingdom.gui.workerhuts.battlemage_purple": "Purple Battlemage"
+  "com.ars_kingdom.gui.workerhuts.battlemage_purple": "Purple Battlemage",
+  "block.ars_kingdom.blockhutarcanistworkshop": "Arcanist Workshop",
+  "com.ars_kingdom.building.arcanistworkshop": "Arcanist Workshop",
+  "com.ars_kingdom.building.arcanistworkshop.desc": "An Arcanist crafts spellbooks, paying part of each craft in source from the jars inside the workshop.",
+  "com.ars_kingdom.job.arcanist": "Arcanist",
+  "com.ars_kingdom.gui.visiblestatus.needs_source": "Needs source"
 }

@@ -1,0 +1,32 @@
+{
+  "type": "recipe",
+  "crafter": "arcanist_custom",
+  "inputs": [
+    {
+      "id": "ars_nouveau:novice_spell_book",
+      "count": 1
+    },
+    {
+      "id": "minecraft:obsidian",
+      "count": 1
+    },
+    {
+      "id": "minecraft:diamond",
+      "count": 3
+    },
+    {
+      "id": "minecraft:quartz_block",
+      "count": 2
+    },
+    {
+      "id": "minecraft:blaze_rod",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "ars_nouveau:apprentice_spell_book",
+    "count": 1
+  },
+  "intermediate": "minecraft:air",
+  "min-building-level": 1
+}

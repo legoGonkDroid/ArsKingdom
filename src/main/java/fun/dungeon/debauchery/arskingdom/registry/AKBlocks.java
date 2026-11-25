@@ -3,6 +3,7 @@ package fun.dungeon.debauchery.arskingdom.registry;
 import fun.dungeon.debauchery.arskingdom.ArsKingdom;
 import fun.dungeon.debauchery.arskingdom.battlemage.BattlemageSchools;
 import fun.dungeon.debauchery.arskingdom.battlemage.MageSchool;
+import fun.dungeon.debauchery.arskingdom.hut.blocks.BlockHutArcanistWorkshop;
 import fun.dungeon.debauchery.arskingdom.hut.blocks.BlockHutMageTower;
 import fun.dungeon.debauchery.arskingdom.hut.blocks.BlockHutSourceSanctum;
 import java.util.EnumMap;
@@ -15,6 +16,9 @@ public final class AKBlocks {
 
     public static final DeferredBlock<BlockHutSourceSanctum> SOURCE_SANCTUM =
             BLOCKS.register(BlockHutSourceSanctum.HUT_NAME, BlockHutSourceSanctum::new);
+
+    public static final DeferredBlock<BlockHutArcanistWorkshop> ARCANIST_WORKSHOP =
+            BLOCKS.register(BlockHutArcanistWorkshop.HUT_NAME, BlockHutArcanistWorkshop::new);
 
     /** Mage Tower huts, one per registered school: {@code blockhutmagetower<school>}. */
     public static final Map<MageSchool, DeferredBlock<BlockHutMageTower>> MAGE_TOWERS = new EnumMap<>(MageSchool.class);

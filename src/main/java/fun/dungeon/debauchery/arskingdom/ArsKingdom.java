@@ -11,6 +11,8 @@ import fun.dungeon.debauchery.arskingdom.registry.AKBuildings;
 import fun.dungeon.debauchery.arskingdom.registry.AKEquipmentTypes;
 import fun.dungeon.debauchery.arskingdom.registry.AKGuardTypes;
 import fun.dungeon.debauchery.arskingdom.battlemage.BattlemageStatus;
+import fun.dungeon.debauchery.arskingdom.arcanist.ArcanistStatus;
+import fun.dungeon.debauchery.arskingdom.arcanist.ArcanistSourceCosts;
 import fun.dungeon.debauchery.arskingdom.battlemage.BattlemageSpellGuard;
 import fun.dungeon.debauchery.arskingdom.battlemage.BattlemageUpkeep;
 import fun.dungeon.debauchery.arskingdom.battlemage.SchoolSpells;
@@ -54,10 +56,12 @@ public final class ArsKingdom {
         AKEquipmentTypes.EQUIPMENT_TYPES.register(modBus);
         AKGuardTypes.GUARD_TYPES.register(modBus);
         BattlemageStatus.init();
+        ArcanistStatus.init();
         BuildingColors.init();
         modBus.addListener(ArsKingdom::onConfig);
         modBus.addListener(ArsKingdom::onConfigReload);
         modBus.addListener(ArsKingdom::onCommonSetup);
+        modBus.addListener(AKBlockEntities::registerCapabilities);
 
         NeoForge.EVENT_BUS.register(ColonyLookup.class);
         NeoForge.EVENT_BUS.register(ColonyRules.class);
@@ -69,6 +73,7 @@ public final class ArsKingdom {
         NeoForge.EVENT_BUS.register(BattlemageUpkeep.class);
         NeoForge.EVENT_BUS.register(SchoolSpells.class);
         NeoForge.EVENT_BUS.register(BattlemageSpellGuard.class);
+        NeoForge.EVENT_BUS.register(ArcanistSourceCosts.class);
     }
 
     private static void onCommonSetup(FMLCommonSetupEvent event) {

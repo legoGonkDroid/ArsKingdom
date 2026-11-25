@@ -10,6 +10,10 @@ import com.minecolonies.core.colony.buildings.moduleviews.WorkerBuildingModuleVi
 import com.minecolonies.core.colony.buildings.views.EmptyView;
 import fun.dungeon.debauchery.arskingdom.ArsKingdom;
 import fun.dungeon.debauchery.arskingdom.building.BuildingSourceSanctum;
+import fun.dungeon.debauchery.arskingdom.building.BuildingArcanistWorkshop;
+import fun.dungeon.debauchery.arskingdom.building.modules.ArcanistCraftingModule;
+import com.minecolonies.core.colony.buildings.modules.CraftingWorkerBuildingModule;
+import com.minecolonies.core.colony.buildings.moduleviews.CraftingModuleView;
 import fun.dungeon.debauchery.arskingdom.building.modules.RulesSettingsModule;
 import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import com.minecolonies.core.colony.buildings.modules.GuardBuildingModule;
@@ -47,6 +51,32 @@ public final class AKBuildings {
                     .setRegistryName(ArsKingdom.id(BuildingSourceSanctum.SCHEMATIC))
                     .addBuildingModuleProducer(SOURCE_KEEPER_WORK)
                     .addBuildingModuleProducer(RULES)
+                    .addBuildingModuleProducer(BuildingModules.MIN_STOCK)
+                    .addBuildingModuleProducer(BuildingModules.STATS_MODULE)
+                    .createBuildingEntry());
+
+    /** The Arcanist: Mana (primary: crafting speed), Focus (secondary: recipe improvement); one per workshop. */
+    public static final BuildingEntry.ModuleProducer<CraftingWorkerBuildingModule, WorkerBuildingModuleView> ARCANIST_WORK =
+            new BuildingEntry.ModuleProducer<>("ars_kingdom_arcanist_work",
+                    () -> new CraftingWorkerBuildingModule(AKJobs.ARCANIST.get(), Skill.Mana, Skill.Focus, false, b -> 1),
+                    () -> WorkerBuildingModuleView::new);
+
+    /** The Arcanist's custom recipes ({@code arcanist_custom}). */
+    public static final BuildingEntry.ModuleProducer<ArcanistCraftingModule, CraftingModuleView> ARCANIST_CRAFT =
+            new BuildingEntry.ModuleProducer<>("ars_kingdom_arcanist_craft",
+                    () -> new ArcanistCraftingModule(AKJobs.ARCANIST.get()),
+                    () -> CraftingModuleView::new);
+
+    public static final DeferredHolder<BuildingEntry, BuildingEntry> ARCANIST_WORKSHOP = BUILDINGS.register(BuildingArcanistWorkshop.SCHEMATIC,
+            () -> new BuildingEntry.Builder()
+                    .setBuildingBlock(AKBlocks.ARCANIST_WORKSHOP.get())
+                    .setBuildingProducer(BuildingArcanistWorkshop::new)
+                    .setBuildingViewProducer(() -> EmptyView::new)
+                    .setRegistryName(ArsKingdom.id(BuildingArcanistWorkshop.SCHEMATIC))
+                    .addBuildingModuleProducer(ARCANIST_WORK)
+                    .addBuildingModuleProducer(ARCANIST_CRAFT)
+                    .addBuildingModuleProducer(BuildingModules.SETTINGS_CRAFTER_RECIPE)
+                    .addBuildingModuleProducer(BuildingModules.CRAFT_TASK_VIEW)
                     .addBuildingModuleProducer(BuildingModules.MIN_STOCK)
                     .addBuildingModuleProducer(BuildingModules.STATS_MODULE)
                     .createBuildingEntry());
