@@ -22,13 +22,21 @@ Level 2: level 1 plus
     railing. Its outer edge has a railing of sourcestone blocks with Ars Additions sourcestone walls on top.
   * Carpet in the school color on both floors, a school banner above the door outside.
   * Magelights on the staircase railing every 6 steps.
+  * A second bed upstairs, on the east wall (level 2 hires a second battlemage).
 
-Plot: 19x20x19 at every level (the 11-wide tower, the staircase and its railing round it, and a block of ground).
+Level 3: level 2 plus
+  * Smooth sourcestone large bricks ("large tiles") replace the rest of the archwood planks: the upper floor's walls,
+    its floor and the roof deck.
+  * A third bed upstairs, on the front wall under the window (three battlemages).
+  * Instead of the railing, the roof deck is covered by a clear glass dome: the top half of a sphere centred on the
+    tower and as wide as it, entered through an archwood door from the top of the outside staircase.
+
+Plot: 19x24x19 at every level (the 11-wide tower, the staircase and its railing round it, and a block of ground).
 
 Logs are never stripped: the final modpack makes archwood logs glow, and stripping removes that.
 Lights are placed lit; the colony (or building) color applies to them once built.
 
-Run from the project root:  python3 tools/gen_magetower_blueprint.py [school ...]   (default: red)
+Run from the project root:  python3 tools/gen_magetower_blueprint.py [school ...]   (default: all four)
 """
 import math
 import sys
@@ -38,10 +46,10 @@ from bpgen import (AIR, ANDESITE, COBBLE, Grid, JAR, MAGELIGHT, PEDESTAL, PLANKS
                    door, ladder, log, pane, save, sconce, st)
 
 OUT_DIR = Path("src/main/resources/blueprints/ars_kingdom/arskingdom/military")
-SCHOOLS = ["red"]
-LEVELS = (1, 2)
+SCHOOLS = ["red", "blue", "green", "purple"]
+LEVELS = (1, 2, 3)
 
-SX, SY, SZ = 19, 20, 19
+SX, SY, SZ = 19, 24, 19
 GROUND = 1                  # layer 1 is ground level; layer 0 is foundation fill
 C = SX // 2                 # centre (9)
 RADIUS = 5.5                # 11 blocks across
@@ -52,6 +60,8 @@ TOP = FLOOR2 + STOREY       # y17: the top band and the roof deck
 ANCHOR = (C - 4, FLOOR1 + 1, C)   # hut against the west (left) wall, facing into the room
 
 SOURCESTONE = st("ars_nouveau:sourcestone")
+SMOOTH_TILES = st("ars_nouveau:smooth_sourcestone_large_bricks")   # "large tiles": level 3 replaces the planks
+GLASS = st("minecraft:glass")
 
 # Log posts round the ring (the 8 corners of the circle's outline and its 4 diagonals), as offsets from the centre.
 # The south door sits between the posts at (-2, 5) and (2, 5).
@@ -137,8 +147,9 @@ def build(school, level):
             put(x, GROUND, z, ANDESITE if x == C else COBBLE)
 
     # ---- walls: planks, log posts, log bands at the upper floor and the top ---------------------------------
+    wood = SMOOTH_TILES if level >= 3 else PLANKS                      # level 3: no planks left
     for y in range(FLOOR1 + 1, TOP):
-        wall = SOURCE_BRICKS if level >= 2 and y < FLOOR2 else PLANKS   # level 2: sourcestone ground floor
+        wall = SOURCE_BRICKS if level >= 2 and y < FLOOR2 else wood     # level 2: sourcestone ground floor
         for x, z in ring:
             put(x, y, z, accent() if (x, z) in POSTS else wall)
     for y in (FLOOR2, TOP):
@@ -147,7 +158,7 @@ def build(school, level):
 
     # Upper floor: archwood planks inside the band.
     for x, z in room:
-        put(x, FLOOR2, z, PLANKS)
+        put(x, FLOOR2, z, wood)
 
     # ---- door (south), with a log lintel and sconces outside ------------------------------------------------
     dz = C + 5
@@ -185,6 +196,12 @@ def build(school, level):
     u = FLOOR2 + 1
     put(C - 4, u, C, bed(school, "west", "head"))
     put(C - 3, u, C, bed(school, "west", "foot"))
+    if level >= 2:                                     # one bed per battlemage (one per tower level)
+        put(C + 4, u, C, bed(school, "east", "head"))   # east wall, mirroring the first
+        put(C + 3, u, C, bed(school, "east", "foot"))
+    if level >= 3:
+        put(C, u, C + 4, bed(school, "south", "head"))  # front wall, under the window
+        put(C, u, C + 3, bed(school, "south", "foot"))
 
     # ---- sconces: on both interior faces of every post that stands into the room (the four diagonal posts),
     # at 3 and 6 blocks above each floor: 4 posts x 2 faces x 2 heights = 16 per floor --------------------------
@@ -195,14 +212,26 @@ def build(school, level):
                     for h in (3, 6):
                         put(px + ddx, floor + h, pz + ddz, sconce(name))
 
-    # ---- roof deck: flat, open air, a log railing round the edge, reached by the ladder --------------------
+    # ---- roof deck: flat, reached by the ladder. Levels 1-2: open air with a log railing round the edge.
+    # Level 3: covered by a clear glass dome (the top half of a sphere centred on the tower, as wide as the tower).
     for x, z in room:
         if (x, z) != (C, C - 4):                       # the ladder comes up through the deck
-            put(x, TOP, z, PLANKS)
-    for x, z in ring:
-        put(x, TOP + 1, z, accent() if (x, z) in POSTS else accent(band_axis(x, z)))
-    for x, z in DIAGONAL_POSTS:                         # magelights on the diagonal posts keep the deck lit
-        put(x, TOP + 2, z, MAGELIGHT)
+            put(x, TOP, z, wood)
+    if level < 3:
+        for x, z in ring:
+            put(x, TOP + 1, z, accent() if (x, z) in POSTS else accent(band_axis(x, z)))
+        for x, z in DIAGONAL_POSTS:                     # magelights on the diagonal posts keep the deck lit
+            put(x, TOP + 2, z, MAGELIGHT)
+    else:
+        base = TOP + 1                                  # the sphere's equator sits on the deck
+        in_sphere = lambda x, y, z: y < base or (x - C) ** 2 + (y - base) ** 2 + (z - C) ** 2 <= RADIUS ** 2
+        for x, z in cells:
+            for y in range(base, SY):
+                if in_sphere(x, y, z) and not all(in_sphere(x + a, y + b, z + c)
+                                                  for a in (-1, 0, 1) for b in (-1, 0, 1) for c in (-1, 0, 1)):
+                    put(x, y, z, GLASS)
+        for dx, dz in ((-2, -2), (2, -2), (2, 2), (-2, 2)):    # magelights on the deck keep the dome lit
+            put(C + dx, TOP + 1, C + dz, MAGELIGHT)
 
     if level >= 2:
 
@@ -251,9 +280,15 @@ def build(school, level):
             sides = {d: "low" for d, (a, b) in (("east", (1, 0)), ("west", (-1, 0)), ("south", (0, 1)), ("north", (0, -1)))
                      if walls.get((x + a, z + b)) == y}
             put(x, y, z, stone_wall(**sides))
-        for x, z in ring:                                       # gap in the deck railing beside the top step
-            if (x, z) not in POSTS and any((x + a, z + b) in top_lane for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                put(x, TOP + 1, z, AIR)
+        for x, z in ring:          # beside the top step: a gap in the deck railing, or at level 3 a door into the dome
+            for a, b, facing in ((1, 0, "west"), (-1, 0, "east"), (0, 1, "north"), (0, -1, "south")):
+                if (x, z) not in POSTS and (x + a, z + b) in top_lane:
+                    if level < 3:
+                        put(x, TOP + 1, z, AIR)
+                    else:
+                        put(x, TOP + 1, z, door("lower", facing=facing))
+                        put(x, TOP + 2, z, door("upper", facing=facing))
+                    break
     return g
 
 
