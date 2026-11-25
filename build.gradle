@@ -1,0 +1,137 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = "ars_kingdom-${minecraft_version}"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        // ./gradlew runGameTestServer: runs the GameTests in fun.dungeon.debauchery.arskingdom.gametest and exits.
+        gameTestServer {
+            type = 'gameTestServer'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+// Dependencies only for the dev runs: on the runtime classpath, not published as dependencies.
+configurations {
+    localRuntime
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+repositories {
+    maven { name = 'BlameJared (Ars Nouveau)'; url = 'https://maven.blamejared.com' }
+    maven { name = 'GeckoLib'; url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
+    maven { name = 'Curios'; url = 'https://maven.theillusivec4.top/' }
+    maven {
+        name = 'LDTTeam (MineColonies, Structurize, BlockUI, Domum, Multipiston)'
+        url = 'https://ldtteam.jfrog.io/ldtteam/modding/'
+        content { includeGroup 'com.ldtteam' }
+    }
+    maven {
+        name = 'CurseMaven (Ars Deco, Archwood Colonies, Biomes O\' Plenty)'
+        url = 'https://cursemaven.com'
+        content { includeGroup 'curse.maven' }
+    }
+}
+
+dependencies {
+    // All mod dependencies are non-transitive: their POMs pull in runtime-only mods we add explicitly.
+    implementation("com.hollingsworth.ars_nouveau:ars_nouveau-1.21.1:${ars_nouveau_version}") { transitive = false }
+    implementation "software.bernie.geckolib:geckolib-neoforge-1.21.1:${geckolib_version}"
+    implementation "top.theillusivec4.curios:curios-neoforge:${curios_version}"
+
+    // Ars Deco: required. Only compat/ArsDecoBridge may touch lambdamagus.ars_deco.*.
+    implementation("curse.maven:${ars_deco_curse}") { transitive = false }
+
+    // MineColonies and the LDTTeam libraries it needs.
+    implementation("com.ldtteam:minecolonies:${minecolonies_version}") { transitive = false }
+    implementation("com.ldtteam:structurize:${structurize_version}") { transitive = false }
+    implementation("com.ldtteam:blockui:${blockui_version}") { transitive = false }
+    implementation("com.ldtteam:domum-ornamentum:${domum_version}:main") { transitive = false }
+    localRuntime("com.ldtteam:multipiston:${multipiston_version}") { transitive = false }
+
+    // Archwood Colonies is data only (style pack, crafter recipes, research): never compiled against.
+    // Its pack needs Biomes O' Plenty, which needs TerraBlender and GlitchCore.
+    localRuntime("curse.maven:${archwood_colonies_curse}") { transitive = false }
+    localRuntime("curse.maven:${biomesoplenty_curse}") { transitive = false }
+    localRuntime("curse.maven:${terrablender_curse}") { transitive = false }
+    localRuntime("curse.maven:${glitchcore_curse}") { transitive = false }
+}
+
+var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    var replaceProperties = [
+            minecraft_version              : minecraft_version,
+            minecraft_version_range        : minecraft_version_range,
+            neo_version                    : neo_version,
+            neo_version_range              : neo_version_range,
+            loader_version_range           : loader_version_range,
+            ars_nouveau_version_range      : ars_nouveau_version_range,
+            ars_deco_version_range         : ars_deco_version_range,
+            minecolonies_version_range     : minecolonies_version_range,
+            archwood_colonies_version_range: archwood_colonies_version_range,
+            mod_id                         : mod_id,
+            mod_name                       : mod_name,
+            mod_license                    : mod_license,
+            mod_version                    : mod_version,
+            mod_authors                    : mod_authors,
+            mod_description                : mod_description
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from 'src/main/templates'
+    into 'build/generated/sources/modMetadata'
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifactId = 'ars_kingdom'
+            from components.java
+        }
+    }
+    repositories {
+        maven { url "file://${project.projectDir}/repo" }
+    }
+}

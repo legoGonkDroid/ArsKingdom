@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "ars_kingdom:block/blockhutmagetowergreen",
+      "y": 0
+    },
+    "facing=south": {
+      "model": "ars_kingdom:block/blockhutmagetowergreen",
+      "y": 90
+    },
+    "facing=west": {
+      "model": "ars_kingdom:block/blockhutmagetowergreen",
+      "y": 180
+    },
+    "facing=north": {
+      "model": "ars_kingdom:block/blockhutmagetowergreen",
+      "y": 270
+    }
+  }
+}

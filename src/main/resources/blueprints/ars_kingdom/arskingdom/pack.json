@@ -1,0 +1,16 @@
+{
+  "icon": "icon.png",
+  "name": "Ars Kingdom (Archwood Collective)",
+  "authors": [
+    "legoGonkDroid"
+  ],
+  "desc": "Ars Kingdom's huts (Mage Towers, Source Sanctum, Arcanist Workshop, Imbuement Hall, Artificer's Hall), built to match Archwood Collective. Use the Archwood Collective pack for every standard MineColonies hut.",
+  "mods": [
+    "minecolonies",
+    "ars_nouveau",
+    "ars_deco",
+    "archwoodcolonies"
+  ],
+  "version": "1",
+  "pack-format": "1"
+}

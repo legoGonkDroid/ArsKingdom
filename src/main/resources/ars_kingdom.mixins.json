@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "fun.dungeon.debauchery.arskingdom.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "EntityFollowProjectileMixin",
+    "RitualBrazierTileMixin"
+  ],
+  "client": [
+    "CitizenArmorLayerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
