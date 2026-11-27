@@ -22,7 +22,10 @@ matters from them is in this file and `PLAN.md`. `PLAN.md` is the single source 
 - Decisions already made (don't re-litigate): colors only from native 16-dye textures (no tinting); Ars Deco and
   Archwood Colonies are hard requirements; Archwood Collective style for every hut; Archwood blueprints may be used as
   inspiration (2026-11-23); four battlemage schools red/blue/green/purple, tiers = building levels 1–3; Ars Additions'
-  sourcestone wall is allowed in tower blueprints (2026-11-25); no stripped archwood logs anywhere.
+  sourcestone wall is allowed in tower blueprints (2026-11-25); no stripped archwood logs anywhere; colony source store
+  (2026-11-27, PLAN.md M3a): one Heart of the Kingdom per colony, placed only inside the Sanctum, source stays with the
+  colony when it's broken, capacity grows with Sanctum level + citizens + research, crafting huts queue FIFO,
+  battlemage refills skip the queue and come first, the Heart is a spinning heart dyed as an Ars Deco target.
 - Commit / push / tag only when the user asks.
 
 ## Setting up on a new machine
@@ -137,4 +140,5 @@ _Last updated 2026-11-25._
   workshop builds and hires, recipes in the hut list, "Needs source" wait then drain, books undyed until equipped,
   Mage Tower book requests filled by the Arcanist).
 - Open items carried forward: Source Sanctum blueprints for levels 2–3 (Chunk 5); Arcanist Workshop is level 1 only.
-- Next chunk after the Chunk 11 test: **Chunk 12, Imbuement Hall**.
+- Next chunk after the Chunk 11 test: **Chunk 11b, colony source store and the Heart of the Kingdom** (planned
+  2026-11-27, PLAN.md M3a), then Chunk 12, Imbuement Hall.

@@ -3,7 +3,7 @@
 ## Context
 This is a new NeoForge 1.21.1 mod that ties Ars Nouveau into MineColonies for the MagicMod pack. It adds:
 - **Battlemage towers:** four schools of battlemage, each with its own tower.
-- **Source economy:** a source economy run by citizens.
+- **Source economy:** a source economy run by citizens, around one colony-wide source store held by the Heart of the Kingdom (M3a).
 - **Arcana research:** an Ars research branch.
 - **Wilden raids:** raids made of Ars Nouveau's Wilden mobs.
 - **Colony dye:** every block that Ars Deco can dye is dyed in the colony's color when it is inside the colony.
@@ -150,7 +150,7 @@ Scope chosen by the user:
 ```
 arskingdom/ArsKingdom.java               @Mod, DeferredRegisters, MC-bus subscriptions in common setup
 config/AKConfig                          SERVER (rule defaults, team-color→dye map, dark purple=undyed, sweep budget, raid chance, skip_archwood_duplicates)
-compat/ArsDecoBridge                     the ONLY class that touches lambdamagus.ars_deco.*
+compat/ArsDecoBridge                     the ONLY class that touches lambdamagus.ars_deco.* (also registers our own targets, e.g. the Heart, by reflection)
 compat/ArsLightBridge                    reads/sets the native ParticleColor of SconceTile/MagelightTorchTile/LightTile
 colony/dye/AutoLitData                   SavedData per dimension: pos → dye whose light color WE applied (ownership record)
 colony/ColonyLookup                      claim-data lookup + per-tick chunk memo
@@ -160,7 +160,11 @@ colony/dye/ColonyDyer                    decides + applies/clears Ars Deco dye o
 colony/dye/DyeSweepQueue                 chunk-incremental sweeps with a per-tick budget
 colony/dye/AutoDyedData                  SavedData per dimension: pos → dye WE applied (ownership record)
 colony/dye/ColonyDyeEvents               place/break/drops/chunk-load/colony-event hooks
-data/ArsKingdomSavedData                 per (dim, colonyId) state (sweep version, raid nights)
+data/ArsKingdomSavedData                 per (dim, colonyId) state (sweep version, raid nights, colony source store: amount + heartPos)
+source/ ColonySourceStore SourceQueue SourceDraw SourceStatus   colony-wide source store and its FIFO queue (M3a)
+heart/ HeartBlock HeartTile HeartEvents  Heart of the Kingdom: colony-backed source jar, placement/break rules (M3a)
+client/HeartModel                        GeckoLib model for the Heart (model + animation only; texture left to Ars Deco's dye mixin)
+building/modules/SourceStoreModule       Sanctum tab: amount, capacity, rates, queue (M3a)
 registry/ AKBlocks AKItems AKBlockEntities AKJobs AKGuardTypes AKBuildings AKModules AKEquipmentTypes AKColonyEvents AKCreativeTab
 hut/AKBlockHut, AKTileEntityColonyBuilding, blocks/BlockHutMageTower (one class, 4 instances), BlockHut{ArcanistWorkshop,SourceSanctum,ImbuementHall,ArtificerHall}
 building/ BuildingMageTower (school-parameterized), Building{ArcanistWorkshop,SourceSanctum,ImbuementHall,ArtificerHall}
@@ -352,7 +356,7 @@ The glyphs are a starting point to tune.
   - The model is `ModModelTypes.DRUID_ID`; the Arcanist armor renders over it.
   - They store `storedMana` in their saved data.
 - **`EntityAIBattlemage extends AbstractEntityAIGuard`** (modeled on `EntityAIDruid`):
-  - At the hut it refills mana with `SourceUtil.takeSourceMultipleWithParticles` from jars.
+  - At the hut it refills mana. Chunk 8 used `SourceUtil.takeSourceMultipleWithParticles` from the tower's jars. From Chunk 11b the refill comes from the colony store at the tower's hut block, without queuing and ahead of the crafting queue (M3a).
   - The mana cap scales with the book tier and with research.
 - **`BattlemageCombatAI extends AttackMoveAI<EntityCitizen>`:**
   - It casts `SchoolSpells.get(school, bookTier)`, a cached `Spell` per school and tier. Tier 1 is the base spell; tiers 2 and 3 add Amplify, AOE or Extend Time. Only glyphs valid for that book tier are used.
@@ -377,7 +381,7 @@ The glyphs are a starting point to tune.
 ### M3: Source economy
 - **Arcanist Workshop** (job `arcanist`, a crafter):
   - `AbstractJobCrafter` with `AbstractEntityAICrafting`.
-  - It pays each output's source cost from jars near the hut, using `data/ars_kingdom/arcanist_source_costs/*.json`. When the jars can't pay, it shows a "needs source" status.
+  - It pays each output's source cost, from `data/ars_kingdom/arcanist_source_costs/*.json`. Chunk 11 paid from the jars near the hut. From Chunk 11b it draws from the colony store through the FIFO queue (M3a), showing "needs source" while it waits and a blocked message once the wait gets long.
   - Modules: `WorkerBuildingModule(ARCANIST, Mana, Focus, false, b->1)`, `ArcanistCustomModule` (crafter key `arcanist_custom`), `CRAFT_TASK_VIEW`, `MIN_STOCK` and `STATS_MODULE`.
   - Recipes live in `data/ars_kingdom/crafterrecipes/arcanist/*.json`.
   - **No duplicates of Archwood Colonies recipes.** Archwood already lets the Fletcher (level 3, after its "Ars Crafting Recipes" research) craft the Arcanist, Battlemage and Sorcerer armor, so the battlemages' armor comes from there. Its Fletcher, Mechanic, Blacksmith and other crafters also cover relays, turrets, wands and more.
@@ -385,11 +389,152 @@ The glyphs are a starting point to tune.
     - `tools/check_archwood_overlap.py` lists every output in Archwood's `crafterrecipes` and fails the build if one of our Arcanist recipes makes the same item.
   - **Ars Deco:** spellbooks the Arcanist crafts, and armor from Archwood's Fletcher, come out undyed. The school color is applied only when a battlemage equips them.
 - **Source Sanctum** (job `sourcekeeper`; this is also the rules hut):
-  - The keeper turns fuel into source in jars inside the building.
-  - It carries the `ars_kingdom_rules` `SettingsModule` with the M1 toggles.
-  - **Ars Deco:** the jars it fills are colony-dyed through M1, and its transfer particles follow the jar dye through M1b.
-  - Stretch goal: a colony reservoir through `SourceManager.INSTANCE.addInterface`.
-  - **Keeping the machine halls supplied:** the keeper also tops up the jars that the Imbuement Hall and Artificer's Hall register (below), in order of lowest fill first, so those halls don't run dry.
+  - The keeper turns fuel into source. Chunk 6 put it into the jars inside the building. From Chunk 11b it burns fuel **and food** into the colony's Heart of the Kingdom (M3a).
+  - Max level is 5. Capacity and generation grow with level, population and research (M3a).
+  - It carries the `ars_kingdom_rules` `SettingsModule` with the M1 toggles, and the `ars_kingdom_source_store` tab (M3a).
+  - **Ars Deco:** the Heart (an Ars Deco target through `ArsDecoBridge`) and the Sanctum's jars are colony-dyed through M1. Transfer particles follow the dye through M1b.
+  - **Superseded by M3a (2026-11-27):** the colony source store replaces the old stretch goal, a colony reservoir through `SourceManager.INSTANCE.addInterface`, and the keeper topping up the halls' jars. Every hut now draws from one colony-wide store, held by the Heart of the Kingdom.
+
+### M3a: Colony source store and the Heart of the Kingdom
+**User design request (2026-11-27).** Source used to sit in each hut's own jars:
+- the keeper filled the Sanctum's jars;
+- the Arcanist paid from the workshop's jars;
+- battlemages refilled from their tower's jars;
+- the halls would have been topped up by the keeper.
+
+Nothing connected those jars. Now the colony has **one source value** that every hut draws from. It is held by a single new block, the **Heart of the Kingdom**.
+- **Crafting huts** wait for source in a FIFO queue.
+- **Battlemage refills** don't queue.
+- **The Sanctum keeper** makes the source from fuel and food.
+- **Capacity and generation** grow with Sanctum level (1–5), the colony's population and University research.
+
+**User decisions (2026-11-27):**
+- **Breaking the Heart:** a Heart broken inside a colony leaves its source **with the colony** (in saved data) and drops empty. A newly placed Heart reconnects to that source.
+- **Placement:** inside a colony, the Heart can only be placed **inside the Source Sanctum's bounds**, and there is **one per colony**. Any other placement inside a colony is refused with a message. Outside any colony it is a normal 10,000-source jar.
+- **Capacity:** each citizen adds capacity on top of the Sanctum's baseline. How much each citizen adds goes up with Sanctum level.
+- **Look:** heart-shaped, floating and spinning like a source relay, with a heart-shaped core inside. It is dyed as an Ars Deco target.
+- **Battlemages:** their **whole mana refill**, which pays for both spells and armor repair, comes from the colony store at the tower's hut block. It **is not queued**, and **battlemages come first**: they take whatever is there, even while a crafter is waiting.
+
+**The store (single source of truth).**
+- `ArsKingdomSavedData` (already kept per dimension and per colony) gains, for each colony:
+  - `source`, an int;
+  - `heartPos`, a BlockPos or none.
+
+  The value lives in saved data, not in the block entity, so huts can draw from it even while the Heart's chunk is unloaded.
+- **Capacity is computed, not stored:** `(baseCapacity(level) + citizens × perCitizen(level)) × (1 + research capacity bonus)`.
+  - `citizens` is `colony.getCitizenManager().getCurrentCitizenCount()`. Visitors don't count.
+  - The citizen share comes **on top of** the Sanctum's baseline, and each citizen's share grows with Sanctum level (table below).
+  - Capacity is read live; caching it for one tick is fine.
+  - A lower capacity (Sanctum downgraded or removed, citizens dead or gone) never deletes source. The store just stops accepting more until it drops below the new capacity.
+- **Colony deleted:** `ColonyDeletedModEvent` drops the colony's entry.
+- **Code:** `source/ColonySourceStore`, a facade over the saved data with `amount`, `capacity`, `add`, `tryTake` and `heart`. Gametests call it directly.
+
+**Sanctum level tables.** All values live in the config; these are starting values to tune.
+
+| Sanctum level | Base capacity | Per citizen | With 50 citizens | Generation multiplier |
+|---|---|---|---|---|
+| 0 (no Sanctum) | 10,000 | 0 | 10,000 | — |
+| 1 | 25,000 | 500 | 50,000 | ×1.0 |
+| 2 | 100,000 | 1,500 | 175,000 | ×1.5 |
+| 3 | 500,000 | 5,000 | 750,000 | ×2.0 |
+| 4 | 2,500,000 | 20,000 | 3,500,000 | ×3.0 |
+| 5 | 25,000,000 | 100,000 | 30,000,000 ("massive") | ×5.0 |
+
+- The generation multiplier replaces Chunk 6's `× level`.
+- Capacity stays an `int`, because Ars's `ISourceTile` is int-based. It is capped at `Integer.MAX_VALUE`.
+- The Sanctum's max level becomes 5. Until the blueprints for levels 2–5 exist, `getMaxBuildingLevel()` returns `BLUEPRINT_LEVELS`, as `BuildingMageTower` does.
+
+**Making source (the keeper).**
+- **What it burns:** any **fuel** (`SourceKeeping.isFuel`, worth `burnTime / 12`) or any **food**. Food is worth what Ars's Mycelial Sourcelink gives for it: `11 × nutrition + 60 × saturation`.
+- **Sourceberry foods are worth ×3.** They are the item tag `#ars_kingdom:sanctum/sourceberry_foods`, which by default holds `#ars_nouveau:magic_food` (source berry pie and roll) and `ars_nouveau:sourceberry_bush`.
+- **Per item:** `base × level multiplier × (1 + Mana/50) × (1 + research efficiency) × keeper_efficiency`.
+- **Loop:**
+  1. Take fuel or food from the Sanctum.
+  2. Walk to the Heart.
+  3. Add one item's worth per action.
+
+  The pacing is unchanged: Focus shortens the pause, and each item gives 0.5 XP. Particles fly into the Heart in its dye color.
+- **When it stops:**
+  - The store is full: it idles.
+  - There is no Heart: a BLOCKING interaction says "This Sanctum needs a Heart of the Kingdom".
+  - There is nothing to burn: it requests `Burnable(16)` as now. Players can stock sourceberry pies through `MIN_STOCK`.
+- The Sanctum's blueprint jars become decoration; the keeper no longer fills them.
+
+**The Heart of the Kingdom** (block and item `ars_kingdom:heart_of_the_kingdom`).
+- **Classes:** `HeartBlock extends SourceJar`, and `HeartTile extends SourceJarTile implements GeoBlockEntity`.
+- **Storage:** `createDefaultStorage()` returns a `SourceStorage` subclass.
+  - **Bound** (its position is the colony's `heartPos`): every get, set, receive and extract goes to `ColonySourceStore`, using the colony's capacity.
+  - **Unbound:** a plain `SourceStorage(10000, 10000)`, so it is exactly a normal jar.
+  - Ars relays, sourcelinks and machines treat a bound Heart as a jar too. Players can feed it with normal Ars logistics, and Ars blocks next to it can draw from it without queuing, just as battlemages do.
+- **Client display:**
+  - The jar's `fill` blockstate isn't drawn, so `updateBlock()` doesn't compute Ars's `source / 1000` fill.
+  - `getTooltip` shows the amount and the capacity.
+  - The client gets the value from the block-entity update tag. A store change re-sends it for a loaded Heart, at most once per second.
+- **Placement** (`BlockEvent.EntityPlaceEvent`, colony from `ColonyLookup`):
+  - **Outside a colony:** placed unbound.
+  - **Inside a colony:** allowed only within a Source Sanctum's corners, and only if the colony has no live Heart. The Heart then registers as `heartPos`, and any source the item carries is added, up to capacity.
+  - **Anything else:** placement is cancelled with a chat message.
+- **Breaking:** clears `heartPos`. The source stays in the colony, and the drop's source data is cleared, so it drops empty.
+- **Recipe:** Enchanting Apparatus, `data/ars_kingdom/recipe/heart_of_the_kingdom.json`, type `ars_nouveau:enchanting_apparatus` (copy the format from Ars's generated `jar_of_light.json`).
+  - Reagent: `ars_nouveau:source_jar`.
+  - Pedestals: one of each of the 7 Ars essences (abjuration, air, conjuration, earth, fire, manipulation, water).
+  - Source: 5,000.
+  - The Artificer's Hall importer (M3b) picks this recipe up too, which is fine.
+- **Look:** a floating, spinning heart like a source relay: a heart-shaped outer frame turning around a smaller heart-shaped core. It is **dyed as an Ars Deco target**: in the colony color through M1, or by a player with Ars Deco.
+  - **Rendering:**
+    - `HeartTile` is a `GeoBlockEntity` (as `RelayTile` is), and the block's render shape is `ENTITYBLOCK_ANIMATED`.
+    - It is drawn by Ars's `GenericTileRenderer`, registered the way Ars's `ClientHandler` registers the relay, but with our `client/HeartModel extends GenericModel`.
+    - `HeartModel` overrides **only** `getModelResource` and `getAnimationResource`, which point at `ars_kingdom:geo/heart_of_the_kingdom.geo.json` and `ars_kingdom:animations/heart_of_the_kingdom_animations.json`. It must **not** override `getTextureResource`: that is where Ars Deco's `GenericModelDyeTextureMixin` swaps in the dyed texture.
+  - **Model and animation:**
+    - Make them in Blockbench, modelled on `reference/ArsNouveau`'s `geo/source_relay.geo.json` and `animations/source_relay_animations.json`.
+    - The outer heart is built from frame cubes around a solid inner heart. The core spins the opposite way to the frame, and the whole Heart bobs gently.
+    - **The UVs map onto Ars's `source_relay` texture**, so no new textures are drawn. Undyed, the Heart uses Ars's own `ars_nouveau:textures/block/source_relay.png`.
+  - **Dyeing:**
+    - `ArsDecoBridge.registerTarget(block, item, "source_relay")` adds `DyeTarget(heartBlock, heartItem, "source_relay", ars_kingdom:heart_of_the_kingdom)` to Ars Deco's target maps.
+    - Reflection is needed because `DyeableArsBlocks` only registers `ars_nouveau` and `ars_additions` blocks, and its `BY_BLOCK`/`BY_ITEM` maps and `registerTarget` are private. The bridge first calls `DyeableArsBlocks.target(...)` once, which runs Ars Deco's lazy `initialize()`, then adds the entry to both maps. This runs in common setup, and again on the client.
+    - Ars Deco's own 16 textures, `ars_deco:textures/block/source_relay/<color>.png`, then apply, so the Heart matches dyed relays exactly. These are native dye textures, not tinting.
+    - The `ars_deco_color` field is already on every block entity (Ars Deco's `BlockEntityDyeMixin`). M1 handles who owns the color, sweeps, undyeing and drops.
+    - In `ArsDecoBridge`'s split, the Heart is a **machine** (`dye_machines`).
+    - Only `ArsDecoBridge` touches Ars Deco, so the rule still holds.
+  - **Item:** a GeckoLib item renderer with the same model. Ars Deco's `GeoItemRendererDyeTextureMixin` should color dyed items; check that it reaches our renderer.
+  - **Particles:** the Heart is an `AbstractSourceMachine`, so Ars Deco's `AbstractSourceMachineDyeColorMixin` colors its transfer particles.
+
+**Drawing source: the FIFO queue** (`source/SourceQueue`). The queue is kept in memory, per colony; citizens simply queue again after a restart.
+- **The call:** `SourceDraw.tryDraw(colony, citizenId, amount)` returns one of:
+  - `GRANTED`: the source was taken atomically;
+  - `WAITING(position)`;
+  - `NO_HEART`;
+  - `TOO_BIG`: the amount is more than the store can ever hold.
+- **Strict FIFO:** only the head of the queue can be granted, even if a smaller request behind it would fit. Callers poll again about every 5 s.
+- **Stale entries:** an entry not polled for 30 s, or whose citizen lost its job, is dropped, so a stuck citizen can't block the queue.
+- **Blocked message:**
+  - Once a citizen has waited longer than `source_wait_blocked_seconds` (config, default 60), it shows a BLOCKING `StandardInteraction`: "Not enough source: waiting for N source from the Heart of the Kingdom (queue position P)". The interaction's validator clears it once the draw is granted.
+  - `NO_HEART` and `TOO_BIG` block straight away ("…the Heart holds at most Y; upgrade the Sanctum").
+  - While waiting, the citizen shows the `NEEDS_SOURCE` status. `arcanist/ArcanistStatus` is generalized into `source/SourceStatus`.
+- **Who queues:**
+  - the Arcanist, for its output's source cost (this replaces `ArcanistSource`'s workshop jars);
+  - the Imbuement Hall, for `recipe.source`;
+  - the Artificer's Hall, for the apparatus cost.
+
+**Hall machines.** A granted draw goes into the hall's **staging jars**:
+- jars within 2 blocks of an imbuement chamber;
+- jars within 10 blocks of an apparatus.
+
+Only then does the worker insert the reagent, and the real Ars machines keep pulling from jars as before.
+
+**Battlemages.** `BattlemageUpkeep.refill` takes the missing mana straight from `ColonySourceStore.tryTake`, without queuing and ahead of the queue. This happens while the battlemage is within 10 blocks of its tower's hut block, and the particles go from the hut block to the battlemage. The tower's jars are no longer used.
+
+**Sanctum window.** A `SourceStoreModule` tab (`ars_kingdom_source_store`, via `serializeToView`) shows:
+- the amount and the capacity;
+- the source made per coal and per source berry pie, at the current level, skill and research;
+- the queue length;
+- whether there is a Heart.
+
+**Research.** Two effects, read with `colony.getResearchManager().getResearchEffects().getEffectStrength(id)`, which is 0 until researched:
+- `ars_kingdom:effects/sanctumefficiency`: +25%, +50%, +100%;
+- `ars_kingdom:effects/sanctumcapacity`: a bonus of +0.5, +1, +2, which is ×1.5, ×2, ×3.
+
+The research JSON comes with Chunk 14.
 
 ### M3b: Ars machine halls (Imbuement Chamber and Enchanting Apparatus)
 None of the earlier buildings can make imbuement or apparatus recipes; the Arcanist Workshop only does MineColonies' own crafter recipes. These two halls add that. Their citizens use the **real Ars blocks** placed by the blueprint, the same way MineColonies' Alchemist uses real brewing stands.
@@ -432,10 +577,11 @@ None of the earlier buildings can make imbuement or apparatus recipes; the Arcan
 - **A craft, step by step:**
   1. Pick a free chamber from `ArsMachineModule`. Building level N allows N chambers to run at once.
   2. Walk there and place each catalyst on an empty pedestal next to the chamber.
-  3. Check `canPlaceItem`, then insert the reagent.
-  4. Leave it; the worker can start other chambers meanwhile.
-  5. Come back when `getStack()` equals the recipe output.
-  6. Take the result, take the catalysts back, and do the delivery bookkeeping by hand, as the Alchemist does (`addDelivery`, the craft counter, `finishRequest`).
+  3. Draw `recipe.source` from the colony store through the queue (M3a) into the staging jars within 2 blocks of the chamber. While waiting, the worker shows the queue's status and, after a long wait, its blocked message.
+  4. Check `canPlaceItem`, then insert the reagent.
+  5. Leave it; the worker can start other chambers meanwhile.
+  6. Come back when `getStack()` equals the recipe output.
+  7. Take the result, take the catalysts back, and do the delivery bookkeeping by hand, as the Alchemist does (`addDelivery`, the craft counter, `finishRequest`).
 - **If it can't run:**
   - No chamber registered: a BLOCKING `StandardInteraction`, "This hall has no Imbuement Chamber".
   - Not enough pedestals: an interaction saying how many pedestals are free and how many the recipe needs.
@@ -447,11 +593,12 @@ None of the earlier buildings can make imbuement or apparatus recipes; the Arcan
 - **A craft, step by step:**
   1. Pick a free apparatus.
   2. Fill its pedestals with the recipe's pedestal items.
-  3. Check `craftingPossible(reagent, null)`. If the source isn't there, show a "not enough source near the apparatus" interaction and wait.
-  4. Insert the reagent; the craft starts by itself.
-  5. Wait while `isCrafting`, about 10.5 seconds.
-  6. Take the result from the core and collect the pedestal remainders.
-  7. Do the delivery bookkeeping.
+  3. Draw the recipe's source cost from the colony store through the queue (M3a) into the staging jars within 10 blocks of the apparatus. While waiting, the worker shows the queue's status and, after a long wait, its blocked message. This replaces the old "not enough source near the apparatus" interaction.
+  4. Check `craftingPossible(reagent, null)`.
+  5. Insert the reagent; the craft starts by itself.
+  6. Wait while `isCrafting`, about 10.5 seconds.
+  7. Take the result from the core and collect the pedestal remainders.
+  8. Do the delivery bookkeeping.
 - **Modules:** `WorkerBuildingModule(ARTIFICER, Mana, Dexterity, false, b->1)`, `ArtificerCustomModule` (crafter key `artificer_custom`), `ArsMachineModule`, `CRAFT_TASK_VIEW`, `MIN_STOCK` and `STATS_MODULE`.
 - **Blueprints:** `artificerhall1..3`. Level N has N apparatuses with 8 pedestals each, and the levels 2 and 3 builds also have more jars within 10 blocks.
 - **Stretch: dynamic apparatus recipes**, as a later chunk.
@@ -473,6 +620,7 @@ None of the earlier buildings can make imbuement or apparatus recipes; the Arcan
   - Hut unlocks, one per school tower (`ars_kingdom:effects/blockhutmagetower<school>`), plus `…/blockhutarcanistworkshop`, `…/blockhutimbuementhall` and `…/blockhutartificerhall`. The Sanctum stays unlocked.
   - `battlemagedamage` and `battlemagemana`. The old `battlemagetier` effect is dropped, because the tier now comes from the book and tower level.
   - `colonymanaregen` and `colonymaxmana`, applied by `ManaBonusHandler` through `ManaRegenCalcEvent` and `MaxManaCalcEvent` to colony members inside their own colony.
+  - `sanctumefficiency` (Sanctum Efficiency I–III: +25%, +50%, +100% source per item) and `sanctumcapacity` (Sanctum Capacity I–III: ×1.5, ×2, ×3 Heart capacity). The code reading them comes in Chunk 11b (M3a).
   - Optional: a "Colony Heraldry" research that unlocks `dye_decor`, while `dye_machines` is always available.
 
 ### M5: Wilden raids
@@ -518,6 +666,13 @@ None of the earlier buildings can make imbuement or apparatus recipes; the Arcan
     - The tower blocks stay in the school color even with a different team color.
     - Removing a piece stops work. Battlemages drain jars, kill zombies and Wilden without hurting citizens, and the rally banner works.
   - **M3:** the Arcanist and keeper work, and the rules tab toggles the M1 behavior live.
+  - **M3a:**
+    - The Heart floats, spins and is colony-dyed, and it works as a plain jar outside a colony.
+    - The keeper fills it from fuel and food, with sourceberry foods worth more.
+    - Capacity grows with Sanctum level, citizens and research.
+    - Crafting huts queue FIFO and show a blocked message after a long wait.
+    - Battlemages refill from it without queuing.
+    - Breaking and re-placing the Heart keeps the colony's amount.
   - **M3b:** the Imbuement Hall and Artificer's Hall list every Ars imbuement and apparatus recipe, including addon recipes, in their recipe screens. A request for an essence or an apparatus item is crafted on the real machines, with visible pedestal use and source drain. Catalysts come back to the worker, and remainders are collected. A missing machine or missing source shows an interaction.
   - **Style:** the build tool shows Archwood Collective and "Ars Kingdom (Archwood Collective)" side by side. An Archwood town hall, builder and guard tower next to our towers and halls look like one consistent style. Archwood buildings' Ars blocks (sconces, pedestals, turrets) are colony-dyed once built.
   - **M4:** our research shows up in Archwood's "Ars Nouveau" branch, the towers unlock, and the mana bonuses work.
@@ -546,6 +701,13 @@ None of the earlier buildings can make imbuement or apparatus recipes; the Arcan
   - Whether recipes added in `CustomRecipesReloadedEvent` reach clients. The fallback is generated datapack JSON.
   - Hoppers or other mods pulling items out of a chamber mid-craft. Imbuement `removeItem` is never locked, so tell players not to automate the halls' machines.
   - Apparatus source is spent up front, so a recipe that stops matching mid-craft wastes it. The worker never touches the pedestals during a craft.
+- **Colony source store (M3a):**
+  - **Registering the Heart as an Ars Deco target uses reflection** into `DyeableArsBlocks`' private maps. An Ars Deco update that renames them breaks it. The canary gametest catches that, and the failure is soft: the Heart just shows undyed. A public registration API from the Ars Deco author would remove the hack.
+  - Check whether Ars Deco's `GeoItemRendererDyeTextureMixin` reaches our GeckoLib item renderer.
+  - The keeper may eat the food it is meant to burn. Check this, and keep the food with `keepX` / `isOkayToEat` if needed.
+  - Ars blocks next to a bound Heart can draw from it without queuing. This is accepted: it behaves like a jar.
+  - The store lives in saved data while Ars treats the Heart as a jar. Watch for client/server desync on chunk reload.
+  - The Sanctum plot (29×23×29) was sized for 3 levels. Levels 4–5 must fit in it, or the plot has to grow; decide this when designing the blueprints with the user.
 - **Blueprints:** none exist yet. The towers need 12 (4 schools × 3 levels), and the other huts need at least a level-1 blueprint each.
 - **Archwood Colonies:**
   - **License (All Rights Reserved):** the user chose to set this aside and use Archwood's blueprints as a basis (2026-11-23). This matters again if Ars Kingdom is published: check before a public release.
@@ -637,7 +799,7 @@ Each chunk below can be built and tested on its own. Do them in order, and finis
 - [x] **Fixes from the first in-game build:** removed the path stairs that left a quarter-block gap, removed the unattached porch sconces, made the door a single door (the building is centred on one block), added all four archwood colours, placed the lights lit, and stood the pedestals up.
 - [x] **Rules tab text:** settings labels are one line of about 20 characters, so the labels are now short ("Dye machines:", "Undye on leaving:", ...). The full wording is in MineColonies' tooltip key `com.minecolonies.coremod.setting.tooltip.ars_kingdom:<key>`.
 - [x] **Test (gametest):** Structurize loads `mystic/sourcesanctum1.blueprint` from our pack; it is anchored on the Sanctum hut, no palette entry resolved to air, the plot is 29×29, it has no stripped logs, every sconce and magelight is at level 15 with lit block entities, pedestals stand up, and red, blue, green and purple archwood logs are all used.
-- [ ] **Blueprints for levels 2–3** (later): grow into the same 29×23×29 plot, for example by turning the corner wells into towers, adding wings and a taller spire; then raise `getMaxBuildingLevel()`.
+- [ ] **Blueprints for levels 2–5** (later; the Sanctum's max level is 5 since M3a, 2026-11-27): grow into the same 29×23×29 plot, for example by turning the corner wells into towers, adding wings and a taller spire. Levels 4–5 may need a bigger plot; decide while designing them. Then raise `BLUEPRINT_LEVELS`.
 - [x] **Test (gametest):** the building is in MineColonies' registry with the rules module, the hut has our registry name and blueprint name `sourcesanctum`, the item is an `ItemBlockHut`, a placed hut gets our block entity tagged `ars_kingdom:sourcesanctum`, and a new rules module is seeded from the config.
 - [x] **Test (in game):**
   - [x] The Sanctum appears in the build tool under the "Ars Kingdom (Archwood Collective)" pack, and a builder builds it.
@@ -701,6 +863,7 @@ Each chunk below can be built and tested on its own. Do them in order, and finis
   - This pulls Chunk 9's mana pool forward: `JobBattlemage.storedMana` (saved as `ars_kingdom_mana`), refilled every 100 ticks while the battlemage is within 10 blocks of the hut, from source jars within 6 blocks of the hut (Ars transfer particles, the jar's dye colour).
   - **Revised after Chunk 9 testing** (battlemages kept walking home: no regen, a 100 cap, 40-mana spells and repairs draining the pool): the pool is now a player's for the same gear, from Ars's server config and the worn stacks (citizens have no Ars mana capability or attributes): max = `baseMax` + `tierMax` × book tier + the armor's `MAX_MANA` modifiers (Arcanist: 30 × (tier + 1) per piece); regen every second = `baseRegen` + `tierRegen` × book tier + the armor's `MANA_REGEN_BONUS` modifiers (tier + 1 per piece). A novice battlemage in a tier-1 set: 270 max, 10/s. No book, no mana. Repairs only spend mana above a reserve of two attacks (`RESERVE_ATTACKS`), so combat comes first. Gametests: `manaLikeAPlayer`, `repairKeepsCombatReserve`.
   - Gametests: `armorRepairCostsMana` (base rate per piece, 20 mana each, nothing below 20 or for undamaged armor) and `manaCapFollowsBook`.
+  - **Changing in Chunk 11b (2026-11-27):** the refill moves from the tower's jars to the colony source store (M3a), at the tower's hut block, without queuing.
 - [x] **Colored buildings (requested):** Mage Towers keep their school color under the colony dye sweep, toggled in the Source Sanctum ("Towers keep color:", one toggle for all schools, on by default). Built as an extensible list (`colony/BuildingColors`): each entry is a building type with its own color and its own Sanctum toggle; `ColonyDye.zoneDye` uses the smallest switched-on colored building containing the position (memoized per colony per tick). A colored building being built, upgraded or removed, or a toggle change, bumps the colony's dye version and re-sweeps; `building_colors` is in the config hash and `SWEEP_LOGIC_VERSION` is 3, so existing towers recolor on the next start. `/arskingdom where` reports the building color. Gametests: `BuildingColorTests` (zone picking incl. nesting, Mage Tower entry and default, a Sanctum toggle per entry, a new entry registered at runtime).
 - [x] **Test (in game, colored buildings):**
   - [x] With a non-purple team color, a Red Mage Tower's jars, lights and sourcestone turn red while the rest of the colony stays in the colony color; `/arskingdom where` inside and outside the tower agrees.
@@ -789,38 +952,88 @@ Each chunk below can be built and tested on its own. Do them in order, and finis
   - [ ] Crafted spellbooks, and Arcanist armor from Archwood's Fletcher (after its Ars Crafting Recipes research), are undyed until a battlemage equips them.
   - [ ] A Mage Tower's book request is filled by the Arcanist.
 
+### Chunk 11b: colony source store and the Heart of the Kingdom
+**User design request (2026-11-27).** This chunk replaces each hut's own jars with one colony-wide store (design and decisions in M3a). It comes after the Chunk 11 in-game test and before Chunk 12, because both halls draw from this store.
+- [ ] `ColonySourceStore` in `ArsKingdomSavedData`: the amount and `heartPos` per colony, dropped on `ColonyDeletedModEvent`. Capacity is computed as `(base(level) + citizens × perCitizen(level)) × (1 + research)`. The level, per-citizen, multiplier and research tables go in the config.
+- [ ] The Heart block, tile and item (`heart/`):
+  - colony-backed `SourceStorage` (bound vs. a plain 10,000 jar when unbound);
+  - client sync, at most once per second, and a tooltip with the amount and capacity;
+  - placement: inside a Sanctum only, one per colony, unbound outside colonies; refused placements get a message;
+  - breaking keeps the source in the colony and drops an empty Heart;
+  - lang and loot table.
+- [ ] The Heart's look:
+  - a `GeoBlockEntity` with `ENTITYBLOCK_ANIMATED`, drawn by Ars's `GenericTileRenderer` with `client/HeartModel` (model and animation only);
+  - a heart-in-heart geo model with a spin and bob animation, UV-mapped to Ars's `source_relay` texture (made in Blockbench, modelled on Ars's relay);
+  - a GeckoLib item renderer.
+- [ ] `ArsDecoBridge.registerTarget`: adds the Heart to Ars Deco's target maps by reflection (texture key `source_relay`, machine category), so M1 and players dye it.
+- [ ] Apparatus recipe `heart_of_the_kingdom.json`: a source jar plus one of each of the 7 essences, 5,000 source.
+- [ ] Keeper rewrite:
+  - fuel and food go into the Heart;
+  - food uses the Mycelial value, and `#ars_kingdom:sanctum/sourceberry_foods` gives ×3;
+  - the level multiplier table and the research efficiency apply;
+  - a "needs a Heart" BLOCKING interaction;
+  - the Sanctum's max level is 5, with `BLUEPRINT_LEVELS` limiting upgrades.
+- [ ] `SourceQueue` / `SourceDraw`:
+  - strict FIFO;
+  - stale entries expire after 30 s without a poll, or when the citizen loses its job;
+  - `NO_HEART` / `TOO_BIG`;
+  - the BLOCKING "Not enough source…" interaction after `source_wait_blocked_seconds` (default 60);
+  - `SourceStatus.NEEDS_SOURCE` (generalized from `ArcanistStatus`).
+- [ ] The Arcanist switches from `ArcanistSource` (workshop jars) to `SourceDraw`.
+- [ ] The battlemage refill (`BattlemageUpkeep.refill`) comes from the store at the tower's hut block: not queued, and ahead of the queue.
+- [ ] `SourceStoreModule` (`ars_kingdom_source_store`) tab on the Sanctum: amount, capacity, source per coal and per source berry pie, queue length, and whether there's a Heart.
+- [ ] Read the research effects `sanctumefficiency` and `sanctumcapacity` (0 until researched; the JSON comes in Chunk 14).
+- [ ] **Test (gametest):**
+  - [ ] FIFO: the head blocks a smaller later request, stale entries expire, and `NO_HEART` / `TOO_BIG` work.
+  - [ ] The capacity table, capacity rising with citizen count at each level, the generation multipliers, and research bonuses (stubbed effect strength).
+  - [ ] Food values: a source berry pie beats bread, and the tag bonus applies.
+  - [ ] Placement: a second Heart is refused, a Heart outside the Sanctum is refused, and outside a colony it is a 10,000 jar. Breaking keeps the colony's amount.
+  - [ ] Ars `SourceUtil` and a relay drawing from or feeding a bound Heart change the store.
+  - [ ] The Ars Deco canary: `ArsDecoBridge.apply` and `clear` work on a placed Heart and read back, and its target texture key is `source_relay`.
+  - [ ] The Arcanist crafts a spellbook paid from the store (update `HiringTests.arcanistCraftsSpellbook`), and a battlemage refills from the store.
+  - [ ] The recipe loads.
+- [ ] **Test (in game):**
+  - [ ] The Heart is crafted on an apparatus. It floats and spins like a relay, with the heart frame turning around the inner heart.
+  - [ ] Inside a colony it takes the colony color; outside one it can be dyed with Ars Deco; the item shows its dye.
+  - [ ] It can be placed in the Sanctum, is refused elsewhere in the colony, and works as a plain jar outside.
+  - [ ] The keeper fills it from coal, and faster from source berry pies.
+  - [ ] The Sanctum tab shows the amount and capacity, and the capacity goes up when a citizen joins.
+  - [ ] Two Arcanist orders queue in order, and a long wait shows the blocked message.
+  - [ ] Battlemages refill at their tower from the Heart.
+  - [ ] Breaking and re-placing the Heart keeps the amount.
+
 ### Chunk 12: Imbuement Hall
 - [ ] `ArsMachineModule`: register chamber, apparatus, pedestal and jar positions from blueprint placement, save them, and prune positions whose block is gone.
 - [ ] `ArsRecipeImporter`: on `CustomRecipesReloadedEvent`, turn imbuement recipes into `imbuer_custom` CustomRecipes. Catalysts come back as secondary outputs, and the minimum level comes from source cost and pedestal count. Check that clients receive them; fall back to generated JSON if they don't.
 - [ ] Hut, `JobImbuer`, and `EntityAIWorkImbuer`: drive the real chamber (catalysts on pedestals, then reagent, then wait, then retrieve), run up to N chambers in parallel, and show the "no chamber" and "not enough pedestals" interactions.
-- [ ] Sanctum keeper also tops up the jars in this hall.
+- [ ] Draw each recipe's source from the colony store through `SourceDraw` (M3a) into the hall's staging jars before inserting the reagent; the waiting worker shows the queue's status and blocked message. (Replaces "Sanctum keeper also tops up the jars in this hall", 2026-11-27.)
 - [ ] `ArsRecipeImporter` skips outputs that already have an `archwoodcollective` crafter recipe (`skip_archwood_duplicates`, default on).
 - [ ] **Blueprints:** scan `imbuementhall1..3`, in the Archwood Collective style. Use Archwood's `enchanter` and `alchemist` as size references only.
 - [ ] **Test (gametest):** the importer turns a known imbuement recipe into the expected `CustomRecipe` (inputs, outputs, intermediate, minimum level).
 - [ ] **Test (gametest):** place a chamber with pedestals and a jar, then drive `ImbuementTile` through the same helper the AI uses. The essence comes out and the catalysts are untouched.
 - [ ] **Test (in game):**
   - The hut lists all 13 Ars imbuement recipes, plus any from Ars Elemental or Ars Additions.
-  - A courier request for Fire Essence is crafted on the real chamber: you can see the pedestals filled and the jar drained.
+  - A courier request for Fire Essence is crafted on the real chamber: you can see the pedestals filled, the staging jar filled from the Heart of the Kingdom and then drained by the chamber.
   - The catalysts come back to the worker.
   - Breaking the chamber shows the interaction.
   - A level-2 hall runs two chambers at once.
 
 ### Chunk 13: Artificer's Hall
 - [ ] `ArsRecipeImporter`: turn plain apparatus recipes (including the keep-data ones) into `artificer_custom` CustomRecipes. Pedestal remainders come back as secondary outputs.
-- [ ] Hut, `JobArtificer`, and `EntityAIWorkArtificer`: fill the pedestals, check `craftingPossible(reagent, null)`, insert the reagent, wait while `isCrafting`, retrieve the result, and collect the remainders. Add the "not enough source" interaction.
-- [ ] Sanctum keeper also tops up the jars in this hall.
+- [ ] Hut, `JobArtificer`, and `EntityAIWorkArtificer`: fill the pedestals, check `craftingPossible(reagent, null)`, insert the reagent, wait while `isCrafting`, retrieve the result, and collect the remainders. Source comes from the queue (M3a), so there's no separate "not enough source" interaction.
+- [ ] Draw each recipe's source from the colony store through `SourceDraw` (M3a) into the hall's staging jars before inserting the reagent; the waiting worker shows the queue's status and blocked message. (Replaces "Sanctum keeper also tops up the jars in this hall", 2026-11-27.)
 - [ ] **Blueprints:** scan `artificerhall1..3`, in the Archwood Collective style.
 - [ ] **Test (gametest):** the importer turns a known apparatus recipe into the expected `CustomRecipe`. Driving `EnchantingApparatusTile` with a null player produces the result after 210 ticks and empties the pedestals to their remainders.
 - [ ] **Test (gametest):** with `skip_archwood_duplicates` on, the importer skips an apparatus output that has an `archwoodcollective` crafter recipe (Arcanist robes). With it off, it imports that output.
 - [ ] **Test (in game):**
   - The hut lists the Ars apparatus recipes, except items Archwood already gives a crafter, such as Arcanist armor (at the Fletcher).
-  - Requests for an apparatus item, and for a keep-data item that Archwood doesn't cover, are crafted on the real apparatus, with source taken from the jars within 10 blocks.
-  - With empty jars, the worker shows the interaction and waits.
+  - Requests for an apparatus item, and for a keep-data item that Archwood doesn't cover, are crafted on the real apparatus, with source drawn from the Heart of the Kingdom into the staging jars within 10 blocks.
+  - With an empty Heart, the worker waits in the queue and shows the blocked message after a long wait.
   - The whole flow survives a relog mid-craft.
 - [ ] **Stretch (later chunk):** battlemage armor-upgrade orders (the `armor_upgrade` recipe for tier 2 and tier 3 Arcanist pieces) and enchantment orders. Each needs its own design pass before it's added here.
 
 ### Chunk 14: Arcana research
-- [ ] Research and effect JSON **in Archwood's `archwoodcollective:arsnouveau` branch**, with no branch file of our own: tower unlocks for each school, the workshop, Imbuement Hall and Artificer's Hall unlocks, `battlemagedamage`, `battlemagemana`, `colonymanaregen` and `colonymaxmana`. Optionally, Colony Heraldry, which unlocks `dye_decor`.
+- [ ] Research and effect JSON **in Archwood's `archwoodcollective:arsnouveau` branch**, with no branch file of our own: tower unlocks for each school, the workshop, Imbuement Hall and Artificer's Hall unlocks, `battlemagedamage`, `battlemagemana`, `colonymanaregen`, `colonymaxmana`, and Sanctum Efficiency I–III (`sanctumefficiency`) and Sanctum Capacity I–III (`sanctumcapacity`) from M3a. Optionally, Colony Heraldry, which unlocks `dye_decor`.
 - [ ] The tower, workshop and Artificer's Hall unlocks have `archwoodcollective:arsnouveau/arscraftingrecipes` as their parent. Nothing already in the branch (crafting recipes, Wilden processing) is recreated.
 - [ ] Spike first: check that MineColonies loads our namespaced research into Archwood's branch with a parent from Archwood's namespace. If it doesn't, use our own `ars_kingdom:arcana` branch.
 - [ ] `ManaBonusHandler`, plus battlemage damage and mana scaling from the research effects.
@@ -828,6 +1041,7 @@ Each chunk below can be built and tested on its own. Do them in order, and finis
   - Our research appears in the University's "Ars Nouveau" branch next to Archwood's, and the towers and workshop stay locked until researched.
   - The tower unlocks can't be started before Ars Crafting Recipes is done.
   - Inside the colony, max mana and regen go up after the research.
+  - Sanctum Efficiency raises the source per item, and Sanctum Capacity raises the Heart's capacity, both as shown in the Sanctum's source tab.
   - Battlemage damage goes up after the research.
 
 ### Chunk 15: Wilden raids
